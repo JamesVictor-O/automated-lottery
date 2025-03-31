@@ -5,6 +5,8 @@ import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
 import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
 
+import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
+
 contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface{
 
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
