@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.7;
+// VRF Imports
+import "@chainlink/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
+import "@chainlink/v0.8/vrf/VRFConsumerBaseV2.sol";
 
-import "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-import "@chainlink/contracts/src/v0.8/AutomationCompatible.sol";
+// Automation Imports
+import "@chainlink/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 
-import "@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol";
-
-contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface{
-
+contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
     VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
     uint64 private immutable i_subscriptionId;
     bytes32 private immutable i_keyHash;
@@ -35,6 +34,12 @@ contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface{
     event LotteryEnter(address indexed player);
     event WinnerPicked(address indexed winner);
 
+
+    // Custom Errors
+    error LotteryNotOpen();
+    error InsufficientETH();
+
+
     constructor(
         uint256 entranceFee,
         uint256 interval,
@@ -53,21 +58,22 @@ contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface{
         s_lastTimeStamp = block.timestamp;
     }
 
-      function enterLottery() public payable {
-        require(s_lotteryState == LotteryState.OPEN, "Lottery not open");
-        require(msg.value >= i_entranceFee, "Not enough ETH to enter");
+    function enterLottery() public payable {
+        if (s_lotteryState != LotteryState.OPEN) {
+            revert LotteryNotOpen();
+        }
+        if (msg.value < i_entranceFee) {
+            revert InsufficientETH();
+        }
         s_players.push(payable(msg.sender));
         emit LotteryEnter(msg.sender);
     }
 
-
-       function checkUpkeep(
-        bytes memory /* checkData */
-    )
+    function checkUpkeep(bytes memory)
         public
         view
         override
-        returns (bool upkeepNeeded, bytes memory /* performData */)
+        returns (bool upkeepNeeded, bytes memory)
     {
         bool isOpen = (s_lotteryState == LotteryState.OPEN);
         bool timePassed = ((block.timestamp - s_lastTimeStamp) >= i_interval);
@@ -77,10 +83,10 @@ contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface{
         return (upkeepNeeded, "");
     }
 
-    function performUpkeep(bytes calldata /* performData */) external override {
+    function performUpkeep(bytes calldata ) external override {
         (bool upkeepNeeded, ) = checkUpkeep("");
         require(upkeepNeeded, "Upkeep not needed");
-        
+
         s_lotteryState = LotteryState.CALCULATING;
         uint256 requestId = i_vrfCoordinator.requestRandomWords(
             i_keyHash,
@@ -92,28 +98,27 @@ contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface{
         emit RequestedLotteryWinner(requestId);
     }
 
-      function fulfillRandomWords(
-        uint256 /* requestId */,
+    function fulfillRandomWords(
+        uint256 ,
         uint256[] memory randomWords
     ) internal override {
         uint256 indexOfWinner = randomWords[0] % s_players.length;
         address payable recentWinner = s_players[indexOfWinner];
         s_recentWinner = recentWinner;
-        
+
         // Reset lottery state
         s_players = new address payable[](0);
         s_lotteryState = LotteryState.OPEN;
         s_lastTimeStamp = block.timestamp;
-        
+
         // Send prize to winner
         (bool success, ) = recentWinner.call{value: address(this).balance}("");
         require(success, "Transfer failed");
-        
+
         emit WinnerPicked(recentWinner);
     }
-    
 
-     function getEntranceFee() public view returns (uint256) {
+    function getEntranceFee() public view returns (uint256) {
         return i_entranceFee;
     }
 
