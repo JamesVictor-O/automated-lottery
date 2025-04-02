@@ -3,8 +3,6 @@ pragma solidity ^0.8.7;
 // VRF Imports
 import "@chainlink/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol";
 import "@chainlink/v0.8/vrf/VRFConsumerBaseV2.sol";
-
-// Automation Imports
 import "@chainlink/v0.8/automation/interfaces/AutomationCompatibleInterface.sol";
 
 contract AutomatedLottery is VRFConsumerBaseV2, AutomationCompatibleInterface {
